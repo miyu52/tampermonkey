@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         XAU/CNY 黄金克价转换
 // @namespace    https://github.com/openclaw/xau-cny-gram
-// @version      1.3.0
+// @version      1.3.1
 // @description  将 investing.com 上 XAU/CNY 的盎司价格自动转换为每克人民币价格
 // @author       OpenClaw
 // @match        https://cn.investing.com/currencies/xau-cny*
@@ -72,7 +72,7 @@
                     '<div style="color:#b8860b;font-size:13px;font-weight:600;margin-bottom:6px;">' +
                         '🥇 黄金克价（人民币）' +
                     '</div>' +
-                    '<div style="color:#232526;font-size:30px;font-weight:800;line-height:1.1;">' +
+                    '<div data-role="gram-price" style="color:#232526;font-size:30px;font-weight:800;line-height:1.1;">' +
                         '¥' + fmt(pricePerGram) +
                     '</div>' +
                     '<div style="color:#999;font-size:11px;margin-top:2px;">元 / 克</div>' +
@@ -80,7 +80,7 @@
                 '<div style="width:1px;height:48px;background:rgba(180,130,20,0.2);"></div>' +
                 '<div style="color:#888;font-size:12px;line-height:1.7;">' +
                     '参考盎司价<br>' +
-                    '<span style="color:#555;font-weight:600;">¥' + fmt(pricePerOz) + '</span> / 盎司<br>' +
+                    '<span data-role="oz-price" style="color:#555;font-weight:600;">¥' + fmt(pricePerOz) + '</span> / 盎司<br>' +
                     '<span style="color:#aaa;">1 金衡盎司 = 31.1035 克</span>' +
                 '</div>' +
             '</div>';
@@ -95,11 +95,11 @@
         if (!card) return false;
 
         // 更新克价数字
-        var gramEl = card.querySelector('div[style*="font-size:30px"]');
+        var gramEl = card.querySelector('[data-role="gram-price"]');
         if (gramEl) gramEl.textContent = '¥' + fmt(pricePerGram);
 
         // 更新盎司参考价
-        var ozEl = card.querySelector('span[style*="font-weight:600"]');
+        var ozEl = card.querySelector('[data-role="oz-price"]');
         if (ozEl) ozEl.textContent = '¥' + fmt(pricePerOz);
 
         return true;
