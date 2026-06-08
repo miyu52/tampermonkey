@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         XAU/CNY 黄金克价转换
 // @namespace    https://github.com/openclaw/xau-cny-gram
-// @version      1.1.0
+// @version      1.2.0
 // @description  将 investing.com 上 XAU/CNY 的盎司价格自动转换为每克人民币价格
 // @author       OpenClaw
 // @match        https://cn.investing.com/currencies/xau-cny*
@@ -170,25 +170,50 @@
         }, 1000);
     }
 
-    // ========== 实时价格监听 ==========
+    // ========== 实时价格监听（定点 + 轮询双保险） ==========
 
-    function observePriceUpdates() {
-        var observer = new MutationObserver(function () {
-            var priceEl = findPriceElement();
-            if (!priceEl) return;
+    var _lastPrice = null;
+    var _priceObserver = null;
 
-            var raw = priceEl.textContent.trim();
-            var pricePerOz = parsePrice(raw);
-            if (isNaN(pricePerOz) || pricePerOz <= 0) return;
+    function readAndUpdate() {
+        var priceEl = findPriceElement();
+        if (!priceEl) return;
 
-            updateCard(pricePerOz, pricePerOz / GRAMS_PER_TROY_OZ);
-        });
+        // 如果价格元素被 React 替换了，重新挂载 observer
+        if (_priceObserver && _priceObserver._targetEl !== priceEl) {
+            _priceObserver.disconnect();
+            _priceObserver = null;
+        }
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true,
-        });
+        var raw = priceEl.textContent.trim();
+        var pricePerOz = parsePrice(raw);
+        if (isNaN(pricePerOz) || pricePerOz <= 0) return;
+
+        // 价格没变就别刷 DOM
+        if (pricePerOz === _lastPrice) return;
+        _lastPrice = pricePerOz;
+
+        updateCard(pricePerOz, pricePerOz / GRAMS_PER_TROY_OZ);
+
+        // 定点监听：只观察价格元素本身的文本变化（不是整个 body）
+        if (!_priceObserver) {
+            _priceObserver = new MutationObserver(function () {
+                readAndUpdate();
+            });
+            _priceObserver._targetEl = priceEl;
+            _priceObserver.observe(priceEl, {
+                characterData: true,
+                childList: true,
+                subtree: true,
+            });
+        }
+    }
+
+    // 定时轮询兜底：每 2 秒检查一次，确保不掉更新
+    var _pollTimer = null;
+
+    function startPriceWatcher() {
+        _pollTimer = setInterval(readAndUpdate, 2000);
     }
 
     // ========== 启动 ==========
@@ -196,10 +221,10 @@
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
             startPolling();
-            observePriceUpdates();
+            startPriceWatcher();
         });
     } else {
         startPolling();
-        observePriceUpdates();
+        startPriceWatcher();
     }
 })();
