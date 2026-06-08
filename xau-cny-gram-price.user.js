@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         XAU/CNY 黄金克价转换
 // @namespace    https://github.com/openclaw/xau-cny-gram
-// @version      1.2.0
+// @version      1.3.0
 // @description  将 investing.com 上 XAU/CNY 的盎司价格自动转换为每克人民币价格
 // @author       OpenClaw
 // @match        https://cn.investing.com/currencies/xau-cny*
@@ -170,50 +170,37 @@
         }, 1000);
     }
 
-    // ========== 实时价格监听（定点 + 轮询双保险） ==========
+    // ========== 实时价格刷新 ==========
+    // 放弃 MutationObserver，纯轮询。investing.com 用 React 渲染，
+    // DOM 节点频繁整棵替换，observer 容易脱钩。每秒读一次 DOM
+    // 基本零开销，但绝对可靠。
 
     var _lastPrice = null;
-    var _priceObserver = null;
 
-    function readAndUpdate() {
+    function refreshPrice() {
         var priceEl = findPriceElement();
         if (!priceEl) return;
-
-        // 如果价格元素被 React 替换了，重新挂载 observer
-        if (_priceObserver && _priceObserver._targetEl !== priceEl) {
-            _priceObserver.disconnect();
-            _priceObserver = null;
-        }
 
         var raw = priceEl.textContent.trim();
         var pricePerOz = parsePrice(raw);
         if (isNaN(pricePerOz) || pricePerOz <= 0) return;
 
-        // 价格没变就别刷 DOM
+        // 价格没变就别碰 DOM
         if (pricePerOz === _lastPrice) return;
         _lastPrice = pricePerOz;
 
-        updateCard(pricePerOz, pricePerOz / GRAMS_PER_TROY_OZ);
+        var pricePerGram = pricePerOz / GRAMS_PER_TROY_OZ;
+        updateCard(pricePerOz, pricePerGram);
 
-        // 定点监听：只观察价格元素本身的文本变化（不是整个 body）
-        if (!_priceObserver) {
-            _priceObserver = new MutationObserver(function () {
-                readAndUpdate();
-            });
-            _priceObserver._targetEl = priceEl;
-            _priceObserver.observe(priceEl, {
-                characterData: true,
-                childList: true,
-                subtree: true,
-            });
-        }
+        console.log(
+            '[XAU-CNY] 价格更新 → 克价 ¥' + fmt(pricePerGram) +
+            ' (盎司 ¥' + fmt(pricePerOz) + ')'
+        );
     }
 
-    // 定时轮询兜底：每 2 秒检查一次，确保不掉更新
-    var _pollTimer = null;
-
     function startPriceWatcher() {
-        _pollTimer = setInterval(readAndUpdate, 2000);
+        // 每秒轮询一次——只读一个 DOM 元素的 textContent，开销可忽略
+        setInterval(refreshPrice, 1000);
     }
 
     // ========== 启动 ==========
